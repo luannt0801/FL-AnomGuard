@@ -7,6 +7,9 @@ import time
 from paho.mqtt.client import Client as MqttClient
 from collections import OrderedDict
 from src.logging_setting import logger
+from src.lstm import start_model_lstm
+from src.cnn import start_model_cnn
+from src.utils import (server_config, client_config, data_config)
 
 class Server(MqttClient):
     def __init__(self, client_fl_id, clean_session=True, userdata=None, protocol=mqtt.MQTTv311):
@@ -38,10 +41,21 @@ class Server(MqttClient):
             self.client_dict[this_client_id] = {"state": "joined"}
             print("Check server join topic res")
             self.subscribe(topic="FL/res/" + this_client_id)
+            ''''
+            For Federated Learning Unsupervised Learning
+            '''
+            self.subscribe(topic="FL/synthetic_res/" + this_client_id)
         elif "FL/res" in topic:
             tmp = topic.split("/")
             this_client_id = tmp[2]
             self.handle_res(this_client_id, msg)
+        elif "FL/synthetic_res" in topic:
+            ''''
+            For Federated Learning Unsupervised Learning
+            '''
+            tmp = topic.split("/")
+            this_client_id = tmp[2]
+            self.handle_synthetic_res(msg)
 
     def on_subscribe(self, client, userdata, mid, granted_qos):
         logger.debug(f"do on_subcribe")
@@ -72,6 +86,32 @@ class Server(MqttClient):
             print(f"{this_client_id} complete task WRITE_MODEL")
             self.handle_update_writemodel(this_client_id, msg)
 
+    ''''
+    For Federated Learning Unsupervised Learning
+    '''
+    
+    def handle_synthetic_res(self, this_client_id, msg):
+        data = json.load(msg.payload)
+        cmd = data["task"]
+        if cmd == "DONE_SELF_CLUSTER":
+            self.handle_labelsDisctionary(this_client_id, msg)
+        elif cmd == "DONE_UPDATE_LABEL":
+            self.handle_glabels_sendmodel(this_client_id, msg)
+
+    
+    def handle_labelsDisctionary(self, this_client_id, msg):
+        print(f"set handle_labelsDisctionary")
+        time.sleep(10)
+        self.send_task(task_name="UPDATE_LABEL", this_client_id=this_client_id)
+
+    def handle_glabels_sendmodel(self, this_client_id, msg):
+        print(f"set handle_glabels_sendmodel")
+        time.sleep(10)
+
+    ''''
+    For Federated Learning Unsupervised Learning
+    '''
+
     def handle_pingres(self, this_client_id, msg):
         logger.debug(f"do handle_pingres")
         ping_res = json.loads(msg.payload)
@@ -84,7 +124,13 @@ class Server(MqttClient):
             if state == "joined" or state == "trained":
                 self.client_dict[this_client_id]["state"] = "eva_conn_done"
                 count_eva_conn_ok = sum(1 for client_info in self.client_dict.values() if client_info["state"] == "eva_conn_ok")
-                self.send_model("src/parameters/server.pt", this_client_id)
+                # # in fedavg server will send model now
+                # self.send_model("src/parameters/server.pt", this_client_id)                
+                ''''
+                For Federated Learning Unsupervised Learning
+                '''
+                self.send_task(task_name="SELF_CLUSTER", this_client_id=this_client_id)
+
 
     def handle_trainres(self, this_client_id, msg):
         logger.debug(f"do handle_trainres")
@@ -113,6 +159,11 @@ class Server(MqttClient):
     def start_round(self):
         logger.debug(f"do start_round")
         self.round = self.round + 1
+        if self.round == 1:
+            if data_config['name_data'] == 'dga':
+                torch.save(start_model_lstm, 'src/parameters/server.pt')
+            elif data_config['name_data'] == 'cifar10':
+                torch.save(start_model_cnn, "src/parameters/server.pt")
 
         print(f"server start round {self.round}")
         self.round_state = "started"
@@ -174,22 +225,24 @@ class Server(MqttClient):
         torch.save(avg_state_dict, "src/parameters/server.pt")
         self.client_trainres_dict.clear()
 
-server_run = Server(client_fl_id="server")
-server_run.connect(host='192.168.100.105', port=1883, keepalive=3600)
+if __name__ == '__main__':
 
-server_run.on_connect
-server_run.on_disconnect
-server_run.on_message
-server_run.on_subscribe
+    server_run = Server(client_fl_id="server")
+    server_run.connect(host=server_config['host'], port=server_config['port'], keepalive=3600)
 
-server_run.loop_start()
+    server_run.on_connect
+    server_run.on_disconnect
+    server_run.on_message
+    server_run.on_subscribe
 
-server_run.subscribe(topic="FL/join")
+    server_run.loop_start()
 
-while server_run.numDevice > len(server_run.client_dict):
-    time.sleep(1)
+    server_run.subscribe(topic="FL/join")
 
-server_run.start_round()
-server_run._thread.join()
+    while server_run.numDevice > len(server_run.client_dict):
+        time.sleep(1)
 
-print(f'server exits')
+    server_run.start_round()
+    server_run._thread.join()
+
+    print(f'server exits')

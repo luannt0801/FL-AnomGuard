@@ -3,6 +3,8 @@ from paho.mqtt.client import MQTTv311
 from src.utils import ping_host
 from src.logging_setting import logger
 from src.lstm import start_training_task
+from src.cnn import start_trainning_CNN
+from src.utils import (server_config, client_config, data_config)
 
 import json
 
@@ -32,6 +34,11 @@ class Client(MqttClient):
         print(topic)
         if topic == "FL/req/" + self.client_id:
             self.handle_task(msg)
+        elif topic == "FL/synthetic_req/" + self.client_id:
+            ''''
+            For Federated Learning Unsupervised Learning
+            '''
+            self.handle_synthetic_req(msg)
 
     def on_subcribe(self, mid, granted_qos):
         logger.debug(f"do on_subcribe")
@@ -50,7 +57,10 @@ class Client(MqttClient):
 
     def do_train(self):
         logger.debug(f"do do_train")
-        result = start_training_task()
+        if data_config['name_data'] == 'dga':
+            result = start_training_task()
+        elif data_config['name_data'] == 'cifar10':
+            result = start_trainning_CNN()
         result_np = {key: value.cpu().numpy().tolist() for key, value in result.items()}
         payload = {
             "task": "DONE_TRAIN",
@@ -75,6 +85,21 @@ class Client(MqttClient):
             self.do_stop_client()
         else:
             print(f"Command {task_name} is not supported")
+    
+    ''''
+    For Federated Learning Unsupervised Learning
+    '''
+
+    def handle_synthetic_req(self, msg):
+        task_name = msg.payload.decode("utf-8")
+        if task_name == "SELF_CLUSTER":
+            self.do_selflearning_data(msg)
+        elif task_name == "UPDATE_LABEL":
+            self.do_update_generalLabel(msg)
+
+    ''''
+    For Federated Learning Unsupervised Learning
+    '''
 
     def handle_model(self, client, userdata, msg):
         """
@@ -101,6 +126,7 @@ class Client(MqttClient):
 
         self.subscribe(topic="FL/model/all_client")
         self.subscribe(topic="FL/req/" + self.client_id)
+        self.subscribe(topic="FL/synthetic_req/"+ self.client_id)
         self.publish(topic="FL/join", payload=self.client_id)
 
         print(f"{self.client_id} joined FL/join of {self.host}")
@@ -108,8 +134,5 @@ class Client(MqttClient):
         self._thread.join()
         print("Client exits")
 
-client = Client(client_id="1", host='192.168.100.105', port=1883)
+client = Client(client_id=client_config['client_id'], host=client_config['host'], port=1883)
 client.start()
-
-
-        

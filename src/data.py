@@ -200,15 +200,15 @@ class Data():
                 print(f"Label {int(label)}: {count} samples")
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
 
-    total_data_in_round = 5000
-    num_classes = 11 # dga: 11 or 1, cifar10: 10
-    labels_drop = []
-    name_data = 'dga'
+#     total_data_in_round = 5000
+#     num_classes = 11 # dga: 11 or 1, cifar10: 10
+#     labels_drop = []
+#     name_data = 'dga'
 
-    get_data = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
+#     get_data = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
 
-    trainset_round, testset = get_data.split_dataset_by_class()
-    get_data.count_dataset(trainset_round)
+#     trainset_round, testset = get_data.split_dataset_by_class()
+#     get_data.count_dataset(trainset_round)
 

@@ -6,6 +6,7 @@ import torchvision.transforms as transforms
 from tqdm import tqdm
 from logging_setting import logger
 from data import Data
+from utils import (server_config, client_config, data_config)
 
 device = torch.device(device="cuda" if torch.cuda.is_available() else "cpu")
 
@@ -148,14 +149,15 @@ def test(model, testloader, critertion, optimizer):
 
     return accuracy
 
+start_model_cnn = LeNet(num_classes=data_config['num_classes'])
 
 def start_trainning_CNN():
-    model = LeNet(num_classes=10)
+    model = LeNet(num_classes=data_config['num_classes'])
 
-    total_data_in_round = 5000
-    num_classes = 10 # dga: 11 or 1, cifar10: 10
-    labels_drop = []
-    name_data = 'cifar10'
+    total_data_in_round = data_config['total_data_in_round']
+    num_classes = data_config['num_classes'] # dga: 11 or 1, cifar10: 10
+    labels_drop = data_config['labels_drop']
+    name_data = data_config['name_data']
 
     data_install = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
     trainset_round, testset = data_install.split_dataset_by_class()
@@ -176,5 +178,5 @@ def start_trainning_CNN():
 
     return model.state_dict()
 
-# if __name__ == "__main__":
-#     start_trainning_CNN()
+if __name__ == "__main__":
+    start_trainning_CNN()
