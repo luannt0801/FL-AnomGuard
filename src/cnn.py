@@ -5,7 +5,7 @@ import torchvision.transforms as transforms
 
 from tqdm import tqdm
 from logging_setting import logger
-from data import split_dataset_by_class, generate_array
+from data import Data
 
 device = torch.device(device="cuda" if torch.cuda.is_available() else "cpu")
 
@@ -68,7 +68,7 @@ class LeNet_5(nn.Module):
         x = self.linear_block(x)
         return x
 
-def get_dataset():
+def handle_dataset():
     transform_train = transforms.Compose([transforms.RandomGrayscale(0.2),
                                           transforms.RandomHorizontalFlip(0.5),
                                           transforms.RandomVerticalFlip(0.2),
@@ -151,8 +151,21 @@ def test(model, testloader, critertion, optimizer):
 
 def start_trainning_CNN():
     model = LeNet(num_classes=10)
+
+    total_data_in_round = 5000
+    num_classes = 10 # dga: 11 or 1, cifar10: 10
+    labels_drop = []
+    name_data = 'cifar10'
+
+    data_install = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
+    trainset_round, testset = data_install.split_dataset_by_class()
+
+    trainloader = torch.utils.data.DataLoader(trainset_round, batch_size=256,
+                                            shuffle=False, num_workers=2)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=256,
+                                            shuffle=False, num_workers=2)
+
     epochs = 10
-    trainloader, testloader = get_dataset()
     optimizer = torch.optim.Adam(model.parameters(), lr = 1e-3)
     critertion = nn.CrossEntropyLoss()
     for epoch in range(epochs):
@@ -163,5 +176,5 @@ def start_trainning_CNN():
 
     return model.state_dict()
 
-# if __name__ == "__main__":
-#     start_trainning_CNN()
+if __name__ == "__main__":
+    start_trainning_CNN()

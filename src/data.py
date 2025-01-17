@@ -9,6 +9,8 @@ from collections import Counter
 from torchvision import datasets, transforms
 from torch.utils.data import Subset
 from torch.utils.data import TensorDataset, DataLoader
+from sklearn.model_selection import train_test_split
+
 
 
 class Data():
@@ -18,7 +20,7 @@ class Data():
         self.label_drops = label_drops
         self.name_data = name_data
 
-        self.dataset = self._dataset_install()
+        self.trainset, self.testset = self._dataset_install()
         self.distribution_data = self._generate_array()
 
     def _generate_array(self):
@@ -62,8 +64,21 @@ class Data():
     def _dataset_install(self):
         if self.name_data == 'cifar10':
             path = "D:\\2025\\Projects\\Federated Learning with the raw meat in the dish\\data\\images"
-            transform = transforms.Compose([transforms.ToTensor()])
-            dataset = datasets.CIFAR10(root=path, train=True, download=True, transform=transform)
+            transform = transforms.Compose([transforms.RandomGrayscale(0.2),
+                                          transforms.RandomHorizontalFlip(0.5),
+                                          transforms.RandomVerticalFlip(0.2),
+                                          transforms.RandomRotation(30),
+                                          transforms.RandomAdjustSharpness(0.4),
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+                                         ])
+            transform_test = transforms.Compose([transforms.ToTensor(), 
+                                            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
+                                        )
+            
+            trainset = datasets.CIFAR10(root=path, train=True, download=True, transform=transform)
+            testset = datasets.CIFAR10(root=path, train=False,
+                                        download=True, transform=transform_test)
         elif self.name_data == 'dga':
             data_folder = path = "D:\\2025\\Projects\\Federated Learning with the raw meat in the dish\\data\\dga"
             dga_types = [dga_type for dga_type in os.listdir(data_folder) if os.path.isdir(f"{data_folder}/{dga_type}")]
@@ -114,10 +129,15 @@ class Data():
             maxlen = max(len(domain) for domain in encoded_domains)  # Đặt chiều dài tối đa
             padded_domains = self.pad_sequences(encoded_domains, maxlen)
 
-            dataset = TensorDataset(torch.tensor(padded_domains, dtype=torch.long), torch.tensor(encoded_labels, dtype=torch.long))
+            X_train, X_test, y_train, y_test = train_test_split(padded_domains, encoded_labels, test_size=0.10, shuffle=True)
+            trainset = TensorDataset(torch.tensor(X_train, dtype=torch.long), torch.Tensor(y_train))
+            testset = TensorDataset(torch.tensor(X_test, dtype=torch.long), torch.Tensor(y_test))
+            # this is all of the data dga
+            # dga_dataset = TensorDataset(torch.tensor(padded_domains, dtype=torch.long), torch.tensor(encoded_labels, dtype=torch.long))
 
             # print(f"DGA dataset: {dga_dataset}")
-        return dataset
+
+        return trainset, testset
     
     def split_dataset_by_class(self):
         """
@@ -130,7 +150,7 @@ class Data():
         if self.name_data == 'cifar10': # num_class = 10
             class_indices = {i: [] for i in range(self.num_class)}
 
-            for idx, (_, label) in enumerate(self.dataset):
+            for idx, (_, label) in enumerate(self.trainset):
                 class_indices[label].append(idx)
             
             selected_indices = []
@@ -140,13 +160,13 @@ class Data():
             for class_id, num_samples in enumerate(self.distribution_data):
                 random.shuffle(class_indices[class_id])  # Xáo trộn chỉ số
                 selected_indices.extend(class_indices[class_id][:num_samples])
-            subset = Subset(self.dataset, selected_indices)
+            subset = Subset(self.trainset, selected_indices)
 
         elif self.name_data == 'dga':
             class_indices = {i: [] for i in range(self.num_class)}
             print(f"check class_indices: {class_indices}")
 
-            for idx, (_, label) in enumerate(self.dataset):
+            for idx, (_, label) in enumerate(self.trainset):
                 # class_indices[label].append(idx)
                 class_indices[label.item()].append(idx)
             selected_indices = []
@@ -156,8 +176,8 @@ class Data():
             for class_id, num_samples in enumerate(self.distribution_data):
                 random.shuffle(class_indices[class_id])  # Xáo trộn chỉ số
                 selected_indices.extend(class_indices[class_id][:num_samples])
-            subset = Subset(self.dataset, selected_indices)
-        return subset
+            subset = Subset(self.trainset, selected_indices)
+        return subset, self.testset
 
     def count_dataset(self, dataset):
         if self.name_data == 'cifar10':
@@ -182,12 +202,12 @@ class Data():
 if __name__ == '__main__':
 
     total_data_in_round = 5000
-    num_classes = 11 # dga: 11 or 1, cifar10: 10
+    num_classes = 10 # dga: 11 or 1, cifar10: 10
     labels_drop = []
-    name_data = 'dga'
+    name_data = 'cifar10'
 
     get_data = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
 
-    trainset_round = get_data.split_dataset_by_class()
+    trainset_round, testset = get_data.split_dataset_by_class()
     get_data.count_dataset(trainset_round)
 

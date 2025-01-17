@@ -13,6 +13,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from matplotlib.ticker import PercentFormatter
 from tqdm import tqdm
+from data import Data
 
 from tldextract import extract
 
@@ -92,34 +93,6 @@ def evaluate(model, testloader, batch_size):
 def decision(x):
     return x >= 0.5
 
-def load_data(df):
-    """
-        Input pandas DataFrame
-        Output DataLoader
-    """
-    max_features = 101 # max_features = number of one-hot dimensions
-    maxlen = 127
-    batch_size = 64
-
-    domains = df['domain'].to_numpy()
-    labels = df['label'].to_numpy()
-
-    char2ix = {x:idx+1 for idx, x in enumerate([c for c in string.printable])}
-    ix2char = {ix:char for char, ix in char2ix.items()}
-
-    # Convert characters to int and pad
-    encoded_domains = [[char2ix[y] for y in x] for x in domains]
-    encoded_labels = [0 if x == 0 else 1 for x in labels]
-    encoded_labels = np.asarray([label for idx, label in enumerate(encoded_labels) if len(encoded_domains[idx]) > 1])
-    encoded_domains = [domain for domain in encoded_domains if len(domain) > 1]
-
-    assert len(encoded_domains) == len(encoded_labels)
-
-    padded_domains = pad_sequences(encoded_domains, maxlen)
-    trainset = TensorDataset(torch.tensor(padded_domains, dtype=torch.long), torch.Tensor(encoded_labels))
-    trainloader = DataLoader(trainset, batch_size=batch_size, shuffle=True, drop_last=True)
-    return trainloader
-
 def domain2tensor(domains):
     encoded_domains = [[char2ix[y] for y in domain] for domain in domains]
     padded_domains = pad_sequences(encoded_domains, maxlen)
@@ -182,52 +155,18 @@ def load_state_dict(model, path):
         model.load_state_dict(state_dict)
 
 def start_training_task():
-    data_folder = 'data/dga'
-    dga_types = [dga_type for dga_type in os.listdir(data_folder) if os.path.isdir(f"{data_folder}/{dga_type}")]
-    print(dga_types)
-    my_df = pd.DataFrame(columns=['domain', 'type', 'label'])
-    for dga_type in dga_types:
-        files = os.listdir(f"{data_folder}/{dga_type}")
-        for file in files:
-            with open(f"{data_folder}/{dga_type}/{file}", 'r') as fp:
-                domains_with_type = [[(line.strip()), dga_type, 1] for line in fp.readlines()]
-                appending_df = pd.DataFrame(domains_with_type, columns=['domain', 'type', 'label'])
-                my_df = pd.concat([my_df, appending_df], ignore_index=True)
+    total_data_in_round = 5000
+    num_classes = 1 # dga: 11 or 1, cifar10: 10
+    labels_drop = []
+    name_data = 'dga'
 
-    with open(f'{data_folder}/benign.txt', 'r') as fp:
-        domains_with_type = [[(line.strip()), 'benign', 0] for line in fp.readlines()[:60000]]
-        appending_df = pd.DataFrame(domains_with_type, columns=['domain', 'type', 'label'])
-        my_df = pd.concat([my_df, appending_df], ignore_index=True)
+    data_install = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
+    trainset_round, testset = data_install.split_dataset_by_class()
 
-    train_test_df, val_df = train_test_split(my_df, test_size=0.1, shuffle=True) 
-    print(train_test_df)
-    # Pre-processing
-    domains = train_test_df['domain'].to_numpy()
-    labels = train_test_df['label'].to_numpy()
-
-    char2ix = {x:idx+1 for idx, x in enumerate([c for c in string.printable])}
-    ix2char = {ix:char for char, ix in char2ix.items()}
-
-    # Convert characters to int and pad
-    encoded_domains = [[char2ix[y] for y in x] for x in domains]
-    encoded_labels = [0 if x == 0 else 1 for x in labels]
-
-    print(f"Number of samples: {len(encoded_domains)}")
-    print(f"One-hot dims: {len(char2ix) + 1}")
-    encoded_labels = np.asarray([label for idx, label in enumerate(encoded_labels) if len(encoded_domains[idx]) > 1])
-    encoded_domains = [domain for domain in encoded_domains if len(domain) > 1]
-
-    assert len(encoded_domains) == len(encoded_labels)
-
-    padded_domains = pad_sequences(encoded_domains, maxlen)
-
-    X_train, X_test, y_train, y_test = train_test_split(padded_domains, encoded_labels, test_size=0.10, shuffle=True)
-
-    trainset = TensorDataset(torch.tensor(X_train, dtype=torch.long), torch.Tensor(y_train))
-    trainloader = DataLoader(trainset, batch_size=batch_size, shuffle=True, drop_last=True)
-
-    testset = TensorDataset(torch.tensor(X_test, dtype=torch.long), torch.Tensor(y_test))
-    testloader = DataLoader(testset, batch_size=batch_size, shuffle=True, drop_last=True)
+    trainloader = torch.utils.data.DataLoader(trainset_round, batch_size=256,
+                                            shuffle=False, num_workers=2)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=256,
+                                            shuffle=False, num_workers=2)
     # lr = 3e-4
     lr = 3e-6
     epochs = 1
