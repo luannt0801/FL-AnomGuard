@@ -5,6 +5,7 @@ import torchvision.transforms as transforms
 
 from tqdm import tqdm
 from logging_setting import logger
+from data import split_dataset_by_class, generate_array
 
 device = torch.device(device="cuda" if torch.cuda.is_available() else "cpu")
 
@@ -66,7 +67,6 @@ class LeNet_5(nn.Module):
         x = torch.flatten(x,1)
         x = self.linear_block(x)
         return x
-
 
 def get_dataset():
     transform_train = transforms.Compose([transforms.RandomGrayscale(0.2),
@@ -165,4 +165,3 @@ def start_trainning_CNN():
 
 # if __name__ == "__main__":
 #     start_trainning_CNN()
-

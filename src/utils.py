@@ -1,4 +1,5 @@
 import ping3
+import numpy as np
 
 def ping_host(host, count=10):
     ping_result = [ping3.ping(host) for _ in range(count)]
