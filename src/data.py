@@ -85,22 +85,20 @@ class Data():
             # print(f"Detected DGA types: {dga_types}")
             my_df = pd.DataFrame(columns=['domain', 'type', 'label'])
 
-            num_labels = 0
             for dga_type in dga_types:
                 files = os.listdir(f"{data_folder}/{dga_type}")
                 for file in files:
-                    num_labels += 1
+                    # num_labels += 1
                     with open(f"{data_folder}/{dga_type}/{file}", 'r') as fp:
                         lines = fp.readlines()
-                        domains_with_type = [[line.strip(), dga_type, num_labels] for line in lines]
 
-                        # if num_labels == 1:
-                        #     domains_with_type = [[line.strip(), dga_type, 1] for line in lines]
-                        # elif num_labels == 11:
-                        #     label_index = dga_types.index(dga_type) + 1
-                        #     domains_with_type = [[line.strip(), dga_type, label_index] for line in lines]
-                        # else:
-                        #     raise ValueError("Please input the correct number of labels for DGA data!")
+                        if self.num_class == 2:
+                            domains_with_type = [[line.strip(), dga_type, 1] for line in lines]
+                        elif self.num_class == 11:
+                            label_index = dga_types.index(dga_type) + 1
+                            domains_with_type = [[line.strip(), dga_type, label_index] for line in lines]
+                        else:
+                            raise ValueError("Please input the correct number of labels for DGA data!")
 
                         appending_df = pd.DataFrame(domains_with_type, columns=['domain', 'type', 'label'])
                         my_df = pd.concat([my_df, appending_df], ignore_index=True)
@@ -157,6 +155,7 @@ class Data():
             # in order
             # for class_id, num_samples in enumerate(distribution):
                 # selected_indices.extend(class_indices[class_id][:num_samples])
+                
             for class_id, num_samples in enumerate(self.distribution_data):
                 random.shuffle(class_indices[class_id])  # Xáo trộn chỉ số
                 selected_indices.extend(class_indices[class_id][:num_samples])
@@ -168,7 +167,9 @@ class Data():
 
             for idx, (_, label) in enumerate(self.trainset):
                 # class_indices[label].append(idx)
-                class_indices[label.item()].append(idx)
+                # class_indices[label.item()].append(idx)
+                class_indices[int(label.item())].append(idx)
+
             selected_indices = []
             # in order
             # for class_id, num_samples in enumerate(distribution):
@@ -202,9 +203,9 @@ class Data():
 if __name__ == '__main__':
 
     total_data_in_round = 5000
-    num_classes = 10 # dga: 11 or 1, cifar10: 10
+    num_classes = 11 # dga: 11 or 1, cifar10: 10
     labels_drop = []
-    name_data = 'cifar10'
+    name_data = 'dga'
 
     get_data = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
 

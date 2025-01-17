@@ -165,7 +165,7 @@ def start_trainning_CNN():
     testloader = torch.utils.data.DataLoader(testset, batch_size=256,
                                             shuffle=False, num_workers=2)
 
-    epochs = 10
+    epochs = 1
     optimizer = torch.optim.Adam(model.parameters(), lr = 1e-3)
     critertion = nn.CrossEntropyLoss()
     for epoch in range(epochs):
@@ -176,5 +176,5 @@ def start_trainning_CNN():
 
     return model.state_dict()
 
-if __name__ == "__main__":
-    start_trainning_CNN()
+# if __name__ == "__main__":
+#     start_trainning_CNN()
