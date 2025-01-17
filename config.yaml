@@ -1,0 +1,13 @@
+server:
+  host: 192.168.100.1
+  port: 1883
+
+client:
+  client_id: 0
+  host: 192.168.100.1
+  data:
+    name_data: 'dga' # dga or cifar10
+    total_data_in_round: 5000
+    num_classes: 2 # dga {2 or 11} & cifar10 {10}
+    labels_drop: [] # input the label dropped
+
