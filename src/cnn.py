@@ -4,9 +4,9 @@ import torchvision
 import torchvision.transforms as transforms
 
 from tqdm import tqdm
-from logging_setting import logger
-from data import Data
-from utils import (server_config, client_config, data_config)
+from .logging_setting import logger
+from .data import Data, get_dataloader
+from .utils import (server_config, client_config, data_config)
 
 device = torch.device(device="cuda" if torch.cuda.is_available() else "cpu")
 
@@ -69,62 +69,56 @@ class LeNet_5(nn.Module):
         x = self.linear_block(x)
         return x
 
-def handle_dataset():
-    transform_train = transforms.Compose([transforms.RandomGrayscale(0.2),
-                                          transforms.RandomHorizontalFlip(0.5),
-                                          transforms.RandomVerticalFlip(0.2),
-                                          transforms.RandomRotation(30),
-                                          transforms.RandomAdjustSharpness(0.4),
-                                          transforms.ToTensor(),
-                                          transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-                                         ])
-    
-    transform_test = transforms.Compose([transforms.ToTensor(), 
-                                         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
-                                       )
+# def train(model, trainloader, critertion, optimizer):
+#     model.train()
 
-    trainset = torchvision.datasets.CIFAR10(root='./data/images', train=True,
-                                            download=True, transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=256,
-                                            shuffle=False, num_workers=2)
+#     running_loss = 0
+#     running_acc = 0
 
-    testset = torchvision.datasets.CIFAR10(root='./data/images', train=False,
-                                        download=True, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=256,
-                                            shuffle=False, num_workers=2)
+#     for inputs, labels in tqdm(trainloader, desc="Training", leave=False):
+#         logger.debug(f"Batch {i}: inputs.shape={inputs.shape}, labels.shape={labels.shape}")
+#         inputs = inputs.to(device)
+#         labels = labels.to(device)
 
-    classes = ('plane', 'car', 'bird', 'cat',
-            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-    
-    return trainloader, testloader
+#         optimizer.zero_grad()
 
-def train(model, trainloader, critertion, optimizer):
+#         outputs = model(inputs)
+#         loss = critertion(outputs, labels)
+#         loss.backward()
+#         optimizer.step()
+#         pred_labels = torch.argmax(outputs, dim=1)
+        
+#         running_loss += loss
+#         running_acc += ((pred_labels == labels).sum().item()/len(labels)) 
+
+#         del inputs, labels, outputs
+
+#     train_loss = running_loss/len(trainloader)
+#     train_acc = running_acc/len(trainloader)
+
+#     return train_loss, train_acc
+
+def trainning(model, trainloader, critertion, optimizer):
     model.train()
-
     running_loss = 0
-    running_acc = 0
-
-    for inputs, labels in tqdm(trainloader):
-        inputs = inputs.to(device)
-        labels = labels.to(device)
-
+    correct = 0
+    total = 0
+    for i, (inputs, labels) in enumerate(tqdm(trainloader, desc="Training", leave=False)):
+        logger.debug(f"Batch {i}: inputs.shape={inputs.shape}, labels.shape={labels.shape}")
+        inputs, labels = inputs.to(device), labels.to(device)
         optimizer.zero_grad()
-
         outputs = model(inputs)
         loss = critertion(outputs, labels)
         loss.backward()
         optimizer.step()
-        pred_labels = torch.argmax(outputs, dim=1)
-        
-        running_loss += loss
-        running_acc += ((pred_labels == labels).sum().item()/len(labels)) 
 
-        del inputs, labels, outputs
+        running_loss += loss.item()
+        _, predicted = outputs.max(1)
+        correct += predicted.eq(labels).sum().item()
+        total += labels.size(0)
+    accuracy = 100. * correct / total
+    return running_loss / len(trainloader), accuracy
 
-    train_loss = running_loss/len(trainloader)
-    train_acc = running_acc/len(trainloader)
-
-    return train_loss, train_loss
 
 def test(model, testloader, critertion, optimizer):
     model.eval()
@@ -133,7 +127,7 @@ def test(model, testloader, critertion, optimizer):
     total = 0
 
     with torch.no_grad():
-        for inputs, labels in tqdm(testloader):
+        for inputs, labels in tqdm(testloader, desc="Testing", leave=False):
             inputs = inputs.to(device)
             labels = labels.to(device)
 
@@ -151,32 +145,21 @@ def test(model, testloader, critertion, optimizer):
 
 start_model_cnn = LeNet(num_classes=data_config['num_classes'])
 
-def start_trainning_CNN():
+def start_trainning_CNN(trainloader, testloader):
+    logger.warning(f"Length of trainloader: {len(trainloader)}")
+    logger.warning(f"start_trainning_CNN")
     model = LeNet(num_classes=data_config['num_classes'])
-
-    total_data_in_round = data_config['total_data_in_round']
-    num_classes = data_config['num_classes'] # dga: 11 or 1, cifar10: 10
-    labels_drop = data_config['labels_drop']
-    name_data = data_config['name_data']
-
-    data_install = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
-    trainset_round, testset = data_install.split_dataset_by_class()
-
-    trainloader = torch.utils.data.DataLoader(trainset_round, batch_size=256,
-                                            shuffle=False, num_workers=2)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=256,
-                                            shuffle=False, num_workers=2)
-
-    epochs = 1
+    epochs = 2
     optimizer = torch.optim.Adam(model.parameters(), lr = 1e-3)
     critertion = nn.CrossEntropyLoss()
     for epoch in range(epochs):
-        train_loss, train_accuracy = train(model=model, trainloader=trainloader, critertion=critertion, optimizer=optimizer)
-        accuracy = test(model=model, testloader=testloader, critertion=critertion, optimizer=optimizer)
+        train_loss, train_accuracy = trainning(model=model, trainloader=trainloader, critertion=critertion, optimizer=optimizer)
+        # accuracy = test(model=model, testloader=testloader, critertion=critertion, optimizer=optimizer)
 
-        logger.info(f"\n Epoch: {epoch} | Trainning: Loss: {train_loss} - Acc: {train_accuracy} | Test: Acc: {accuracy}")
-
+        # logger.info(f"\n Epoch: {epoch} | Trainning: Loss: {train_loss} - Acc: {train_accuracy} | Test: Acc: {accuracy}")
+        logger.info(f"\n Epoch: {epoch} | Trainning: Loss: {train_loss} - Acc: {train_accuracy} | Test: Acc: ")
+    logger.warning(f"done start_trainning_CNN")
     return model.state_dict()
 
-if __name__ == "__main__":
-    start_trainning_CNN()
+# if __name__ == "__main__":
+#     start_trainning_CNN()
