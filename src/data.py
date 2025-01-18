@@ -5,6 +5,8 @@ import os
 import random
 import string
 import torch
+from .utils import data_config
+from .logging_setting import logger
 from collections import Counter
 from torchvision import datasets, transforms
 from torch.utils.data import Subset
@@ -97,6 +99,9 @@ class Data():
                         elif self.num_class == 11:
                             label_index = dga_types.index(dga_type) + 1
                             domains_with_type = [[line.strip(), dga_type, label_index] for line in lines]
+                        elif self.num_class == 10:
+                            label_index = dga_types.index(dga_type) + 1
+                            domains_with_type = [[line.strip(), dga_type, label_index] for line in lines]
                         else:
                             raise ValueError("Please input the correct number of labels for DGA data!")
 
@@ -155,7 +160,7 @@ class Data():
             # in order
             # for class_id, num_samples in enumerate(distribution):
                 # selected_indices.extend(class_indices[class_id][:num_samples])
-                
+            # logger.critical(self.distribution_data)
             for class_id, num_samples in enumerate(self.distribution_data):
                 random.shuffle(class_indices[class_id])  # Xáo trộn chỉ số
                 selected_indices.extend(class_indices[class_id][:num_samples])
@@ -178,6 +183,7 @@ class Data():
                 random.shuffle(class_indices[class_id])  # Xáo trộn chỉ số
                 selected_indices.extend(class_indices[class_id][:num_samples])
             subset = Subset(self.trainset, selected_indices)
+        # logger.critical(f"check {len(subset)}")
         return subset, self.testset
 
     def count_dataset(self, dataset):
@@ -199,16 +205,36 @@ class Data():
             for label, count in sorted(label_counts.items()):
                 print(f"Label {int(label)}: {count} samples")
 
+def get_dataloader():
+    # logger.debug(f"\n client get_dataloader")
+    total_data_in_round = data_config['total_data_in_round']
+    # logger.critical(total_data_in_round)
+    num_classes = data_config['num_classes'] # dga: 11 or 1, cifar10: 10
+    labels_drop = data_config['labels_drop']
+    name_data = data_config['name_data']
+
+    if data_config['name_data'] == 'cifar10':
+        data_install = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
+        trainset_round, testset = data_install.split_dataset_by_class()
+        # logger.warning(f"check trainset_round {len(trainset_round)}")
+        trainloader = torch.utils.data.DataLoader(trainset_round, batch_size=64,
+                                                shuffle=False, num_workers=2)
+        testloader = torch.utils.data.DataLoader(testset, batch_size=64,
+                                                shuffle=False, num_workers=2)
+        # logger.warning(f"check trainloader {len(trainloader)}")
+    elif data_config['name_data'] == 'dga':
+        get_data = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
+        trainset_round, testset = get_data.split_dataset_by_class()
+        trainloader = torch.utils.data.DataLoader(trainset_round, batch_size=64, shuffle=True, drop_last=True)
+        testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=True, drop_last=True)
+    
+    return trainloader, testloader
 
 # if __name__ == '__main__':
-
-#     total_data_in_round = 5000
-#     num_classes = 11 # dga: 11 or 1, cifar10: 10
-#     labels_drop = []
-#     name_data = 'dga'
-
-#     get_data = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
-
-#     trainset_round, testset = get_data.split_dataset_by_class()
-#     get_data.count_dataset(trainset_round)
+#     trainset_round, testset = get_dataloader()
+#     print(f"Tổng số mẫu: {len(trainset_round)}")
+#     class_count = {i: 0 for i in range(10)}
+#     for _, label in trainset_round:
+#         class_count[label] += 1
+#     print("Số lượng mẫu mỗi lớp:", class_count) 
 

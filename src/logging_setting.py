@@ -17,7 +17,9 @@ class CustomFormatter(logging.Formatter):
     reset = "\x1b[0m"
     green = '\033[1;32;48m'
     cyan = '\033[1;36;48m'
-    format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+    # format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+    format = "%(message)s (%(filename)s:%(lineno)d)"
+
 
     FORMATS = {
         logging.DEBUG: green + format + reset,
@@ -41,7 +43,9 @@ ch.setFormatter(CustomFormatter())
 logger.addHandler(ch)
 
 file_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+    # "%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+    "\n%(message)s (%(filename)s:%(lineno)d)"
+
 )
 # fh = logging.FileHandler(log_file_path)
 # fh.setLevel(logging.DEBUG)

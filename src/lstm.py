@@ -4,8 +4,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from data import Data
-from utils import (server_config, client_config, data_config)
+from .data import Data
+from .utils import (server_config, client_config, data_config)
 
 # Device configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -67,11 +67,16 @@ def train(model, trainloader, criterion, optimizer, epoch):
 
     for inputs, labels in tqdm(trainloader):
         inputs, labels = inputs.to(device), labels.to(device)
+        labels = labels.long()
         h = tuple([each.data for each in h])
 
         model.zero_grad()
         output, h = model(inputs, h)
-        loss = criterion(output.squeeze() if model.num_classes == 1 else output, labels)
+        # Loss computation
+        if model.num_classes == 1:
+            loss = criterion(output.squeeze(), labels)  # Squeeze output if model has only 1 class (binary classification)
+        else:
+            loss = criterion(output, labels)
         loss.backward()
 
         nn.utils.clip_grad_norm_(model.parameters(), clip)
@@ -92,6 +97,7 @@ def test(model, testloader, criterion):
     with torch.no_grad():
         for inputs, labels in tqdm(testloader):
             inputs, labels = inputs.to(device), labels.to(device)
+            labels = labels.long()
             val_h = tuple([each.data for each in val_h])
             output, val_h = model(inputs, val_h)
 
@@ -111,33 +117,26 @@ def test(model, testloader, criterion):
 start_model_lstm = LSTMModel(max_features, embed_size, hidden_size, n_layers, num_classes=(1 if data_config['num_classes'] == 2 else data_config['num_classes'])).to(device)
 
 # Start training task
-def start_training_task():
-    total_data_in_round = data_config['total_data_in_round']
-    num_classes = data_config['num_classes'] # dga: 11 or 1, cifar10: 10
-    labels_drop = data_config['labels_drop']
-    name_data = data_config['name_data']
-
-    get_data = Data(name_data=name_data, num_data=total_data_in_round, num_class=num_classes, label_drops=labels_drop)
-    trainset_round, testset = get_data.split_dataset_by_class()
-    trainloader = DataLoader(trainset_round, batch_size=batch_size, shuffle=True, drop_last=True)
-    testloader = DataLoader(testset, batch_size=batch_size, shuffle=True, drop_last=True)
-
+def start_training_task(trainloader, testloader):
     lr = 3e-6
     epochs = 1
 
-    model = LSTMModel(max_features, embed_size, hidden_size, n_layers, num_classes=(1 if num_classes == 2 else num_classes)).to(device)
-    criterion = nn.BCELoss() if num_classes == 2 else nn.CrossEntropyLoss()
+    model = LSTMModel(max_features, embed_size, hidden_size, n_layers, num_classes=(1 if data_config['num_classes'] == 2 else data_config['num_classes'])).to(device)
+    criterion = nn.BCELoss() if data_config['num_classes'] == 2 else nn.CrossEntropyLoss()
     optimizer = optim.RMSprop(params=model.parameters(), lr=lr)
 
     for epoch in range(epochs):
         train_loss = train(model, trainloader, criterion, optimizer, epoch)
-        eval_loss, accuracy = test(model, testloader, criterion)
+        # eval_loss, accuracy = test(model, testloader, criterion)
         print(
             f"Epoch: {epoch + 1}/{epochs}",
             f"Training Loss: {train_loss:.4f}",
-            f"Eval Loss: {eval_loss:.4f}",
-            f"Accuracy: {accuracy:.4f}"
+            # f"Eval Loss: {eval_loss:.4f}",
+            # f"Accuracy: {accuracy:.4f}"
+            f"Eval Loss: ",
+            f"Accuracy: "
         )
+    return model.state_dict()
 
 # if __name__ == "__main__":
 #     start_training_task()
