@@ -173,7 +173,7 @@ class Server(MqttClient):
                 logger.debug(f"send task STOP {c}")
             self.loop_stop()
     
-    #----------End of Connect with Client-----------
+    #------------End of Connect with Client-------------
 
     def do_aggregate(self):
         logger.debug("Do aggregate ...")
