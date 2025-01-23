@@ -65,7 +65,7 @@ class Data():
     
     def _dataset_install(self):
         if self.name_data == 'cifar10':
-            path = "D:\\2025\\Projects\\Federated Learning with the raw meat in the dish\\data\\images"
+            path = data_config['path']
             transform = transforms.Compose([transforms.RandomGrayscale(0.2),
                                           transforms.RandomHorizontalFlip(0.5),
                                           transforms.RandomVerticalFlip(0.2),
@@ -82,7 +82,7 @@ class Data():
             testset = datasets.CIFAR10(root=path, train=False,
                                         download=True, transform=transform_test)
         elif self.name_data == 'dga':
-            data_folder = path = "D:\\2025\\Projects\\Federated Learning with the raw meat in the dish\\data\\dga"
+            data_folder = path = data_config['path']
             dga_types = [dga_type for dga_type in os.listdir(data_folder) if os.path.isdir(f"{data_folder}/{dga_type}")]
             # print(f"Detected DGA types: {dga_types}")
             my_df = pd.DataFrame(columns=['domain', 'type', 'label'])
@@ -171,8 +171,9 @@ class Data():
             print(f"check class_indices: {class_indices}")
 
             for idx, (_, label) in enumerate(self.trainset):
-                # class_indices[label].append(idx)
+                # class_indices[label].append(idx)``
                 # class_indices[label.item()].append(idx)
+                logger.critical("Do this is error")
                 class_indices[int(label.item())].append(idx)
 
             selected_indices = []

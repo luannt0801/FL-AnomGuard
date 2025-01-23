@@ -18,8 +18,8 @@ class Server(MqttClient):
         self.client_dict = {}
         self.client_trainres_dict = {}
 
-        self.numRound = 10 # input
-        self.numDevice = 1 # input
+        self.numRound = server_config['num_round'] # input
+        self.numDevice = server_config['num_device'] # input
         self.round_state = "finished"
         self.round = 0
 
