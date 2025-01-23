@@ -56,7 +56,35 @@ class Server(MqttClient):
         data = f.read()
         f.close()
         self.publish(topic="FL/model/all_client", payload=data)
+        
+    '''
+    Server methods
+    '''
 
+    def start_round(self):
+        logger.debug(f"start_round")
+        self.round = self.round + 1
+        if self.round == 1:
+            if data_config['name_data'] == 'dga':
+                torch.save(start_model_lstm, 'src/parameters/server.pt')
+            elif data_config['name_data'] == 'cifar10':
+                torch.save(start_model_cnn, "src/parameters/server.pt")
+
+        logger.debug(f"server start round {self.round}")
+        self.round_state = "started"
+
+        # logger.info("1st: Server send task EVACONN")
+        logger.warning(f"client_dict in server: {self.client_dict}")
+        
+        for client_i in self.client_dict:
+            self.send_task("EVALUATION_CONNECT", client_i)
+        
+        logger.warning(f"Check the client_trainres_dict \n {self.client_trainres_dict}")
+        while len(self.client_trainres_dict) != self.numDevice:
+            time.sleep(1)
+        time.sleep(1)
+        self.end_round()
+    
     def handle_res(self, this_client_id, msg):
         logger.debug(f"handle_res")
         data = json.loads(msg.payload)
@@ -76,14 +104,6 @@ class Server(MqttClient):
             print(f"client_{this_client_id} complete task WRITE_MODEL")
             self.handle_update_writemodel(this_client_id, msg)
     
-    def handle_labelsDisctionary(self, this_client_id, msg):
-        logger.debug(f"handle_labelsDisctionary")
-        self.send_task(task_name='UPDATE_LABEL', this_client_id=this_client_id)
-
-    def handle_glabels_sendmodel(self, this_client_id, msg):
-        logger.debug(f"handle_glabels_sendmodel")
-        self.send_model("src/parameters/server.pt", this_client_id)                
-
     def handle_pingres(self, this_client_id, msg):
         logger.debug(f"handle_pingres")
         ping_res = json.loads(msg.payload)
@@ -101,7 +121,14 @@ class Server(MqttClient):
                 logger.warning(f"state client_{this_client_id}: {state}")
                 if count_eva_conn_ok == self.numDevice:              
                     self.send_task(task_name='SELF_CLUSTER', this_client_id=this_client_id)
+    
+    def handle_labelsDisctionary(self, this_client_id, msg):
+        logger.debug(f"handle_labelsDisctionary")
+        self.send_task(task_name='UPDATE_LABEL', this_client_id=this_client_id)
 
+    def handle_glabels_sendmodel(self, this_client_id, msg):
+        logger.debug(f"handle_glabels_sendmodel")
+        self.send_model("src/parameters/server.pt", this_client_id)                
 
     def handle_trainres(self, this_client_id, msg):
         logger.debug(f"handle_trainres")
@@ -127,38 +154,6 @@ class Server(MqttClient):
             if count_model_recv == self.numDevice:
                 logger.warning(f"Waiting for training round {self.round} from client...")
 
-    def start_round(self):
-        logger.debug(f"start_round")
-        self.round = self.round + 1
-        if self.round == 1:
-            if data_config['name_data'] == 'dga':
-                torch.save(start_model_lstm, 'src/parameters/server.pt')
-            elif data_config['name_data'] == 'cifar10':
-                torch.save(start_model_cnn, "src/parameters/server.pt")
-
-        logger.debug(f"server start round {self.round}")
-        self.round_state = "started"
-
-        # logger.info("1st: Server send task EVACONN")
-        logger.warning(f"client_dict in server: {self.client_dict}")
-        
-        for client_i in self.client_dict:
-            self.send_task("EVALUATION_CONNECT", client_i)
-        
-        logger.warning(f"Check the client_trainres_dict \n {self.client_trainres_dict}")
-        while len(self.client_trainres_dict) != self.numDevice:
-            time.sleep(1)
-        time.sleep(1)
-        self.end_round()
-
-    def do_aggregate(self):
-        logger.debug("Do aggregate ...")
-        self.aggregated_models()
-
-    def handle_next_round_duration(self):
-        while len(self.client_trainres_dict) < self.numDevice:
-            time.sleep(1)
-
     def end_round(self):
         logger.debug(f"server end round {self.round}")
 
@@ -177,6 +172,16 @@ class Server(MqttClient):
                 self.send_task("STOP", c)
                 logger.debug(f"send task STOP {c}")
             self.loop_stop()
+    
+    #----------End of Connect with Client-----------
+
+    def do_aggregate(self):
+        logger.debug("Do aggregate ...")
+        self.aggregated_models()
+
+    def handle_next_round_duration(self):
+        while len(self.client_trainres_dict) < self.numDevice:
+            time.sleep(1)
 
     def aggregated_models(self):
         sum_state_dict = OrderedDict()

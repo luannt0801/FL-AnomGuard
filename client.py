@@ -45,6 +45,42 @@ class Client(MqttClient):
     def on_subcribe(self, mid, granted_qos):
         logger.debug(f"do on_subcribe")
         print(f"Subcribe: {mid}, {granted_qos}")
+    
+    '''
+    Client methods
+    '''
+
+    def start(self):
+        logger.debug(f"client start")
+        self.connect(host=self.host, port=self.port, keepalive=65535)
+        self.message_callback_add("FL/model/all_client", self.handle_model)
+        self.loop_start()
+
+        self.subscribe(topic="FL/model/all_client")
+        self.subscribe(topic="FL/req/" + self.client_id)
+        self.publish(topic="FL/join", payload=self.client_id)
+
+        logger.debug(f"{self.client_id} joined FL/join of {self.host}")
+
+        self._thread.join()
+        logger.debug("Client exits")
+
+    def handle_task(self, msg):
+        logger.debug(f"do handle_task")
+        task_name = msg.payload.decode("utf-8")
+        logger.warning(f"Received task name: {task_name}")
+        if task_name == "EVALUATION_CONNECT":
+            self.do_evaluate_connection()
+        elif task_name == "SELF_CLUSTER":
+            self.do_selflearning_data()
+        elif task_name == "UPDATE_LABEL":
+            self.do_update_generalLabel()
+        elif task_name == "START_TRAIN":
+            self.do_train()
+        elif task_name == "STOP":
+            self.do_stop_client()
+        else:
+            logger.warning(f"Command {task_name} is not supported")
 
     def do_evaluate_connection(self):
         logger.debug(f"do evaluate_connection")
@@ -56,6 +92,23 @@ class Client(MqttClient):
         )
         logger.warning(f"Published to topic FL/res/{self.client_id}")
         return result
+
+    def do_selflearning_data(self):
+        self.trainloader, self.testloader = get_dataloader()
+        logger.debug(f"do_selflaerning_data")
+        payload = {
+            'task': 'DONE_SELF_CLUSTER'
+        }
+        payload_str = json.dumps(payload)
+        self.publish(topic='FL/res/'+str(self.client_id), payload=payload_str)
+    
+    def do_update_generalLabel(self):
+        logger.debug(f"do_update_generalLabel")
+        payload = {
+            'task': 'DONE_UPDATE_LABEL'
+        }
+        payload_str = json.dumps(payload)
+        self.publish(topic='FL/res/'+str(self.client_id), payload=payload_str)
 
     def do_train(self):
         logger.debug(f"\ndo_train")
@@ -87,39 +140,7 @@ class Client(MqttClient):
         logger.debug(f"do_stop_client")
         self.loop_stop()
 
-    def handle_task(self, msg):
-        logger.debug(f"do handle_task")
-        task_name = msg.payload.decode("utf-8")
-        logger.warning(f"Received task name: {task_name}")
-        if task_name == "EVALUATION_CONNECT":
-            self.do_evaluate_connection()
-        elif task_name == "SELF_CLUSTER":
-            self.do_selflearning_data()
-        elif task_name == "UPDATE_LABEL":
-            self.do_update_generalLabel()
-        elif task_name == "START_TRAIN":
-            self.do_train()
-        elif task_name == "STOP":
-            self.do_stop_client()
-        else:
-            logger.warning(f"Command {task_name} is not supported")
-
-    def do_selflearning_data(self):
-        self.trainloader, self.testloader = get_dataloader()
-        logger.debug(f"do_selflaerning_data")
-        payload = {
-            'task': 'DONE_SELF_CLUSTER'
-        }
-        payload_str = json.dumps(payload)
-        self.publish(topic='FL/res/'+str(self.client_id), payload=payload_str)
-
-    def do_update_generalLabel(self):
-        logger.debug(f"do_update_generalLabel")
-        payload = {
-            'task': 'DONE_UPDATE_LABEL'
-        }
-        payload_str = json.dumps(payload)
-        self.publish(topic='FL/res/'+str(self.client_id), payload=payload_str)
+    #-------------END-------------
 
     def handle_model(self, client, userdata, msg):
         """
@@ -137,21 +158,6 @@ class Client(MqttClient):
             "task": "CLIENT_RECEIVE_MODEL"
         }
         self.publish(topic="FL/res/" + self.client_id, payload=json.dumps(msg_send_server))
-
-    def start(self):
-        logger.debug(f"client start")
-        self.connect(host=self.host, port=self.port, keepalive=65535)
-        self.message_callback_add("FL/model/all_client", self.handle_model)
-        self.loop_start()
-
-        self.subscribe(topic="FL/model/all_client")
-        self.subscribe(topic="FL/req/" + self.client_id)
-        self.publish(topic="FL/join", payload=self.client_id)
-
-        logger.debug(f"{self.client_id} joined FL/join of {self.host}")
-
-        self._thread.join()
-        logger.debug("Client exits")
 
 client = Client(client_id=client_config['client_id'], host=client_config['host'], port=1883)
 client.start()
